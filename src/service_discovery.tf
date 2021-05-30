@@ -45,15 +45,6 @@ resource "hyperv_machine_instance" "consul_server" {
     override_cache_attributes = "Default"
   }
 
-  integration_services {
-    "Guest Service Interface" = false
-    "Heartbeat"               = true
-    "Key-Value Pair Exchange" = true
-    "Shutdown"                = true
-    "Time Synchronization"    = true
-    "VSS"                     = true
-  }
-
   memory_maximum_bytes = 1073741824 # 1Gb
   memory_minimum_bytes = 1073741824 # 1Gb
   memory_startup_bytes = 1073741824 # 1Gb
