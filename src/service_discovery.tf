@@ -31,8 +31,6 @@ resource "hyperv_machine_instance" "consul_server" {
     resource_pool_name = ""
   }
 
-  dynamic_memory = false
-
   generation = 2
 
   guest_controlled_cache_types = false
