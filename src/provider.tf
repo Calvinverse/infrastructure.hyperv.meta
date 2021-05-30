@@ -1,6 +1,3 @@
-provider "archive" {
-}
-
 provider "hyperv" {
   user            = "${var.hyperv_administrator_user}"
   password        = "${var.hyperv_administrator_password}"
@@ -19,7 +16,7 @@ provider "hyperv" {
 
 provider "windns" {
   server = "${var.ad_host}"
-  username = "${var.ad_administrator_username}"
+  username = "${var.ad_administrator_user}"
   password = "${var.ad_administrator_password}"
   usessl = false
 }
