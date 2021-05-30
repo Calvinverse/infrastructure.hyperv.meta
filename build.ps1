@@ -107,12 +107,22 @@ New-ProvisionIso -path (Join-Path $isoConfigDirectory 'windows-client') -isoFile
 
 Push-Location -Path $srcDirectory
 try {
-    $planPath = Join-Path $buildDirectory 'hyperv-meta.plan'
-    & terraform validate
-
     $env:TF_IN_AUTOMATION = 'true'
+    $env:TF_LOG = 'trace'
+    $env:TF_LOG_PATH = (Join-Path $tempDirectory 'tf.log')
+
+    $planPath = Join-Path $buildDirectory 'hyperv-meta.plan'
+    #& terraform validate
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw 'Validation failed'
+    }
 
     & terraform init
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw 'Terraform init failed'
+    }
 
     $varPathArtefacts = "'path_artefacts=$tempArtefactDirectory'"
     $varPathHypervTemp = "'path_hyperv_temp=$hypervDirectory'"
