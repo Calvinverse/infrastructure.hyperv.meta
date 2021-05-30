@@ -1,7 +1,7 @@
 provider "hyperv" {
-  user            = "${var.hyperv_administrator_user}"
-  password        = "${var.hyperv_administrator_password}"
-  host            = "${var.hyperv_server_address}"
+  user            = var.hyperv_administrator_user
+  password        = var.hyperv_administrator_password
+  host            = var.hyperv_server_address
   port            = 5986
   https           = false
   insecure        = true
@@ -15,8 +15,8 @@ provider "hyperv" {
 }
 
 provider "windns" {
-  server = "${var.ad_host}"
-  username = "${var.ad_administrator_user}"
-  password = "${var.ad_administrator_password}"
-  usessl = false
+  server   = var.ad_host
+  username = var.ad_administrator_user
+  password = var.ad_administrator_password
+  usessl   = false
 }

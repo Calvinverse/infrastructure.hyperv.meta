@@ -4,7 +4,7 @@ locals {
 
 # Name prefixes
 locals {
-  name_prefix = "${local.environment_short}"
+  name_prefix    = local.environment_short
   name_prefix_tf = "${local.name_prefix}-tf"
 }
 
