@@ -6,8 +6,6 @@ locals {
     ui_resource_name = "resource.hashi.ui"
 }
 
-
-
 resource "hyperv_vhd" "consul_server_vhd" {
   count = var.service_discovery_cluster_size
   path = "${var.path_hyperv_vhd}/consul_server_${count.index}/${local.server_disk_name}"
@@ -51,7 +49,7 @@ resource "hyperv_machine_instance" "consul_server" {
 
   network_adaptors {
     name = "wan"
-    switch_name = "${hyperv_network_switch.switch.name}"
+    switch_name = "${data.hyperv_network_switch.switch.name}"
     management_os = false
     is_legacy = false
     dynamic_mac_address = true
