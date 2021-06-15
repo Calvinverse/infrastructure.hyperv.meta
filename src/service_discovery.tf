@@ -79,7 +79,7 @@ resource "windns" "dns-consul-servers" {
   record_name = "hashiserver-${count.index}"
   record_type = "A"
   zone_name   = "infrastructure.${var.ad_domain}"
-  ipv4address = hyperv_machine_instance.consul_server[count.index].network_adapters.0.ip_addresses
+  ipv4address = hyperv_machine_instance.consul_server[count.index].network_adaptors.0.ip_addresses[0]
 }
 
 
