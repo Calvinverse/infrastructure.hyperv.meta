@@ -8,9 +8,8 @@ locals {
 
 resource "hyperv_vhd" "consul_server_vhd" {
   count    = var.service_discovery_cluster_size
-  path     = "${var.path_hyperv_vhd}/consul_server_${count.index}/${local.server_disk_name}"
-  source   = "${var.path_artefacts}/${local.server_resource_name}/resource/Virtual Hard Disks/ubuntu-*.vhdx"
-  vhd_type = "Dynamic"
+  path     = "${var.path_hyperv_vhd}\\consul_server_${count.index}\\${local.server_disk_name}"
+  source   = "${var.path_artefacts}\\${local.server_resource_name}\\resource\\Virtual Hard Disks\\ubuntu-*.vhdx"
 }
 
 resource "hyperv_machine_instance" "consul_server" {
@@ -25,7 +24,7 @@ resource "hyperv_machine_instance" "consul_server" {
   dvd_drives {
     controller_number   = "0"
     controller_location = "1"
-    path                = "${var.path_provisioning_iso}/server-${count.index}.iso"
+    path                = "${var.path_provisioning_iso}\\server-${count.index}.iso"
     resource_pool_name  = ""
   }
 
@@ -37,7 +36,7 @@ resource "hyperv_machine_instance" "consul_server" {
     controller_type           = "Scsi"
     controller_number         = "0"
     controller_location       = "0"
-    path                      = "${var.path_hyperv_vhd}/consul_server_${count.index}/${local.server_disk_name}"
+    path                      = "${var.path_hyperv_vhd}\\consul_server_${count.index}\\${local.server_disk_name}"
     override_cache_attributes = "Default"
   }
 
