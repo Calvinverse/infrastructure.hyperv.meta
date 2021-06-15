@@ -2,8 +2,13 @@
 param(
     [string] $artefactDirectory,
     [string] $configDirectory,
+    [string] $adDomainName,
+    [string] $adHost,
+    [string] $hypervHost,
     [string] $userName,
-    [string] $userPassword
+    [string] $userPassword,
+    [switch] $apply,
+    [switch] $destroy
 )
 
 $ErrorActionPreference = 'Stop'
@@ -57,23 +62,186 @@ function New-ProvisionIso
     & mkisofs.exe -r -iso-level 4 -UDF -o $isoFile $path
 }
 
+function New-TerraformPlan
+{
+    [CmdletBinding()]
+    param(
+        [string[]] $artefactNames,
+        [string] $artefactDirectory,
+        [string] $configDirectory,
+        [string] $adDomainName,
+        [string] $adHost,
+        [string] $hypervHost,
+        [string] $userName,
+        [string] $userPassword,
+        [string] $hypervDirectory,
+        [string] $isoDirectory,
+        [string] $planPath,
+        [string] $srcDirectory,
+        [string] $tempDirectory,
+        [string] $tempArtefactDirectory
+    )
+
+    New-DirectoryIfNotExists -path $buildDirectory
+    New-DirectoryIfNotExists -path $hypervDirectory
+    New-DirectoryIfNotExists -path $tempDirectory
+    New-DirectoryIfNotExists -path $isoDirectory
+    New-DirectoryIfNotExists -path $tempArtefactDirectory
+
+    foreach ($name in $artefactNames)
+    {
+        Expand-Artefact `
+            -name $name `
+            -targetDirectory $tempArtefactDirectory `
+            -artefactDirectory $artefactDirectory
+    }
+
+    $isoConfigDirectory = Join-Path $configDirectory 'iso'
+    New-ProvisionIso -path (Join-Path $isoConfigDirectory 'consul-server-01') -isoFile (Join-Path $isoDirectory 'server-0.iso')
+    New-ProvisionIso -path (Join-Path $isoConfigDirectory 'consul-server-02') -isoFile (Join-Path $isoDirectory 'server-1.iso')
+    New-ProvisionIso -path (Join-Path $isoConfigDirectory 'consul-server-02') -isoFile (Join-Path $isoDirectory 'server-2.iso')
+    New-ProvisionIso -path (Join-Path $isoConfigDirectory 'linux-client') -isoFile (Join-Path $isoDirectory 'linux-client.iso')
+    New-ProvisionIso -path (Join-Path $isoConfigDirectory 'windows-client') -isoFile (Join-Path $isoDirectory 'windows-client.iso')
+
+    Push-Location -Path $srcDirectory
+    try
+    {
+        $env:TF_IN_AUTOMATION = 'true'
+        $env:TF_LOG = 'trace'
+        $env:TF_LOG_PATH = (Join-Path $tempDirectory 'tf-plan.log')
+        $env:WINRMCP_DEBUG = 1
+
+        & terraform validate
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw 'Validation failed'
+        }
+
+        & terraform init
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw 'Terraform init failed'
+        }
+
+        $command = '& terraform plan'
+        $command += " -out $planPath"
+        $command += " -var ad_domain=$adDomainName"
+        $command += " -var ad_host=$adHost"
+        $command += " -var 'path_artefacts=$tempArtefactDirectory'"
+        $command += " -var 'path_hyperv_temp=$hypervDirectory'"
+        $command += " -var 'path_hyperv_vhd=$hypervDirectory'"
+        $command += " -var 'path_provisioning_iso=$isoDirectory'"
+        $command += " -var 'hyperv_administrator_user=$userName'"
+        $command += " -var 'hyperv_administrator_password=$userPassword'"
+        $command += " -var 'hyperv_server_address=$hypervHost'"
+        $command += " -var 'ad_administrator_user=$userName'"
+        $command += " -var 'ad_administrator_password=$userPassword'"
+
+        Invoke-Expression -Command $command
+    }
+    finally
+    {
+        Pop-Location
+    }
+}
+
+function Publish-TerraformPlan
+{
+    [CmdletBinding()]
+    param(
+        [string] $planPath,
+        [string] $srcDirectory
+    )
+
+    if (-not (Test-Path $planPath))
+    {
+        throw "Expected plan at: $planPath. No file found."
+    }
+
+    Push-Location -Path $srcDirectory
+    try
+    {
+        $env:TF_IN_AUTOMATION = 'true'
+        $env:TF_LOG = 'trace'
+        $env:TF_LOG_PATH = (Join-Path $tempDirectory 'tf-apply.log')
+        $env:WINRMCP_DEBUG = 1
+
+        & terraform init
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw 'Terraform init failed'
+        }
+
+        $command = '& terraform apply'
+        $command += " $planPath"
+
+        Invoke-Expression -Command $command
+    }
+    finally
+    {
+        Pop-Location
+    }
+}
+
+function Remove-TerraformPlan
+{
+    [CmdletBinding()]
+    param(
+        [string] $adDomainName,
+        [string] $adHost,
+        [string] $hypervHost,
+        [string] $userName,
+        [string] $userPassword,
+        [string] $hypervDirectory,
+        [string] $isoDirectory,
+        [string] $planPath,
+        [string] $srcDirectory,
+        [string] $tempDirectory,
+        [string] $tempArtefactDirectory
+    )
+
+    Push-Location -Path $srcDirectory
+    try
+    {
+        $env:TF_IN_AUTOMATION = 'true'
+        $env:TF_LOG = 'trace'
+        $env:TF_LOG_PATH = (Join-Path $tempDirectory 'tf-plan.log')
+        $env:WINRMCP_DEBUG = 1
+
+        & terraform init
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw 'Terraform init failed'
+        }
+
+        $command = '& terraform destroy'
+        $command += " -var ad_domain=$adDomainName"
+        $command += " -var ad_host=$adHost"
+        $command += " -var 'path_artefacts=$tempArtefactDirectory'"
+        $command += " -var 'path_hyperv_temp=$hypervDirectory'"
+        $command += " -var 'path_hyperv_vhd=$hypervDirectory'"
+        $command += " -var 'path_provisioning_iso=$isoDirectory'"
+        $command += " -var 'hyperv_administrator_user=$userName'"
+        $command += " -var 'hyperv_administrator_password=$userPassword'"
+        $command += " -var 'hyperv_server_address=$hypervHost'"
+        $command += " -var 'ad_administrator_user=$userName'"
+        $command += " -var 'ad_administrator_password=$userPassword'"
+
+        Invoke-Expression -Command $command
+    }
+    finally
+    {
+        Pop-Location
+    }
+}
+
 # ---------------------------------- Functions ---------------------------------
 
 $buildDirectory = Join-Path $PSScriptRoot 'build'
-New-DirectoryIfNotExists -path $buildDirectory
-
 $hypervDirectory = Join-Path $buildDirectory 'hyperv'
-New-DirectoryIfNotExists -path $hypervDirectory
-
 $tempDirectory = Join-Path $buildDirectory 'temp'
-New-DirectoryIfNotExists -path $tempDirectory
-
 $isoDirectory = Join-Path $tempDirectory 'iso'
-New-DirectoryIfNotExists -path $isoDirectory
-
 $tempArtefactDirectory = Join-Path $tempDirectory 'artefacts'
-New-DirectoryIfNotExists -path $tempArtefactDirectory
-
 $srcDirectory = Join-Path $PSScriptRoot 'src'
 
 # Get the resource archives
@@ -91,51 +259,49 @@ $artefactNames = @(
     #'resource.logs.processor'
 )
 
-foreach ($name in $artefactNames) {
-    Expand-Artefact `
-        -name $name `
-        -targetDirectory $tempArtefactDirectory `
-        -artefactDirectory $artefactDirectory
+$planPath = Join-Path $buildDirectory 'hyperv-meta.plan'
+
+if ($apply)
+{
+    "Applying terraform plan at: $planPath"
+    Publish-TerraformPlan `
+        -planPath $planPath `
+        -srcDirectory $srcDirectory
 }
-
-$isoConfigDirectory = Join-Path $configDirectory 'iso'
-New-ProvisionIso -path (Join-Path $isoConfigDirectory 'consul-server-01') -isoFile (Join-Path $isoDirectory 'server-1.iso')
-New-ProvisionIso -path (Join-Path $isoConfigDirectory 'consul-server-02') -isoFile (Join-Path $isoDirectory 'server-2.iso')
-New-ProvisionIso -path (Join-Path $isoConfigDirectory 'consul-server-02') -isoFile (Join-Path $isoDirectory 'server-3.iso')
-New-ProvisionIso -path (Join-Path $isoConfigDirectory 'linux-client') -isoFile (Join-Path $isoDirectory 'linux-client.iso')
-New-ProvisionIso -path (Join-Path $isoConfigDirectory 'windows-client') -isoFile (Join-Path $isoDirectory 'windows-client.iso')
-
-Push-Location -Path $srcDirectory
-try {
-    $env:TF_IN_AUTOMATION = 'true'
-    $env:TF_LOG = 'trace'
-    $env:TF_LOG_PATH = (Join-Path $tempDirectory 'tf.log')
-
-    $planPath = Join-Path $buildDirectory 'hyperv-meta.plan'
-    #& terraform validate
-    if ($LASTEXITCODE -ne 0)
+else
+{
+    if ($destroy)
     {
-        throw 'Validation failed'
+        Remove-TerraformPlan `
+            -adDomainName $adDomainName `
+            -adHost $adHost `
+            -hypervHost $hypervHost `
+            -userName $userName `
+            -userPassword $userPassword `
+            -hypervDirectory $hypervDirectory `
+            -isoDirectory $isoDirectory `
+            -planPath $planPath `
+            -srcDirectory $srcDirectory `
+            -tempDirectory $tempDirectory `
+            -tempArtefactDirectory $tempArtefactDirectory
     }
-
-    & terraform init
-    if ($LASTEXITCODE -ne 0)
+    else
     {
-        throw 'Terraform init failed'
+        "Creating terraform plan at: $planPath"
+        New-TerraformPlan `
+            -artefactNames $artefactNames `
+            -artefactDirectory $artefactDirectory `
+            -configDirectory $configDirectory `
+            -adDomainName $adDomainName `
+            -adHost $adHost `
+            -hypervHost $hypervHost `
+            -userName $userName `
+            -userPassword $userPassword `
+            -hypervDirectory $hypervDirectory `
+            -isoDirectory $isoDirectory `
+            -planPath $planPath `
+            -srcDirectory $srcDirectory `
+            -tempDirectory $tempDirectory `
+            -tempArtefactDirectory $tempArtefactDirectory
     }
-
-    $varPathArtefacts = "'path_artefacts=$tempArtefactDirectory'"
-    $varPathHypervTemp = "'path_hyperv_temp=$hypervDirectory'"
-    $varPathHypervVhd = "'path_hyperv_vhd=$hypervDirectory'"
-    $varProvisioningIso = "'path_provisioning_iso=$isoDirectory'"
-    $varHypervUser = "'hyperv_administrator_user=$userName'"
-    $varHypervPassword = "'hyperv_administrator_password=$userPassword'"
-    $varAdUser = "'ad_administrator_user=$userName'"
-    $varAdPassword = "'ad_administrator_password=$userPassword'"
-    & terraform plan -out="$planPath" -var $varPathArtefacts -var $varPathHypervTemp -var $varPathHypervVhd -var $varProvisioningIso  -var $varHypervUser -var $varHypervPassword -var $varAdUser -var $varAdPassword
 }
-finally {
-    Pop-Location
-}
-
-# Return plan + diff
