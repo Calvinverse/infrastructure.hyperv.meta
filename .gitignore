@@ -1,2 +1,4 @@
 build/
 src/.terraform/
+src/service-discovery/.terraform/
+src/service-discovery/.terraform.lock.hcl
