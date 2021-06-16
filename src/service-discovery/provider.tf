@@ -1,3 +1,21 @@
+terraform {
+  required_providers {
+    consul = {
+      version = "~> 2.12.0"
+    }
+
+    hyperv = {
+      source  = "taliesins/hyperv"
+      version = "~> 1.0"
+    }
+
+    windns = {
+      source  = "terraform.example.com/portsofportland/windns"
+      version = "~> 0.5"
+    }
+  }
+}
+
 provider "hyperv" {
   user            = var.hyperv_administrator_user
   password        = var.hyperv_administrator_password
