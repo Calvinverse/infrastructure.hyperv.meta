@@ -2,3 +2,6 @@ build/
 src/.terraform/
 src/service-discovery/.terraform/
 src/service-discovery/.terraform.lock.hcl
+src/proxy/.terraform/
+src/proxy/.terraform.lock.hcl
+src/service-discovery/terraform.tfstate
