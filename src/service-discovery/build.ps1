@@ -1,8 +1,8 @@
 [CmdletBinding()]
 param(
-    [string] $groupName = 'service-discovery',
     [string] $artefactDirectory,
-    [string] $configDirectory,
+    [string] $isoDirectory,
+    [string] $buildDirectory,
     [string] $adDomainName,
     [string] $adHost,
     [string] $hypervHost,
@@ -30,6 +30,11 @@ function Expand-Artefact
     Select-Object -Last 1
 
     $unzipDirectory = Join-Path $targetDirectory $name
+    if (Test-Path $unzipDirectory)
+    {
+        Remove-Item -Recurse -Force $unzipDirectory
+    }
+
     New-DirectoryIfNotExists -path $unzipDirectory
 
     Expand-Archive -Path $artefact.FullName -DestinationPath $unzipDirectory
@@ -42,11 +47,7 @@ function New-DirectoryIfNotExists
         [string] $path
     )
 
-    if (Test-Path $path)
-    {
-        Remove-Item -Path "$path\*" -Recurse -Force
-    }
-    else
+    if (-not (Test-Path $path))
     {
         New-Item -Path $path -ItemType Directory | Out-Null
     }
@@ -67,24 +68,22 @@ function New-TerraformPlan
 {
     [CmdletBinding()]
     param(
-        [string] $groupName = 'service-discovery',
+        [string] $groupName ,
         [string[]] $artefactNames,
         [string] $artefactDirectory,
-        [string] $configDirectory,
+        [string] $isoDirectory,
         [string] $adDomainName,
         [string] $adHost,
         [string] $hypervHost,
         [string] $userName,
         [string] $userPassword,
         [string] $hypervDirectory,
-        [string] $isoDirectory,
         [string] $planPath,
         [string] $srcDirectory,
         [string] $tempDirectory,
         [string] $tempArtefactDirectory
     )
 
-    New-DirectoryIfNotExists -path $buildDirectory
     New-DirectoryIfNotExists -path $hypervDirectory
     New-DirectoryIfNotExists -path $tempDirectory
     New-DirectoryIfNotExists -path $isoDirectory
@@ -98,13 +97,6 @@ function New-TerraformPlan
             -artefactDirectory $artefactDirectory
     }
 
-    $isoConfigDirectory = Join-Path $configDirectory 'iso'
-    New-ProvisionIso -path (Join-Path $isoConfigDirectory 'consul-server-01') -isoFile (Join-Path $isoDirectory 'server-0.iso')
-    New-ProvisionIso -path (Join-Path $isoConfigDirectory 'consul-server-02') -isoFile (Join-Path $isoDirectory 'server-1.iso')
-    New-ProvisionIso -path (Join-Path $isoConfigDirectory 'consul-server-02') -isoFile (Join-Path $isoDirectory 'server-2.iso')
-    New-ProvisionIso -path (Join-Path $isoConfigDirectory 'linux-client') -isoFile (Join-Path $isoDirectory 'linux-client.iso')
-    New-ProvisionIso -path (Join-Path $isoConfigDirectory 'windows-client') -isoFile (Join-Path $isoDirectory 'windows-client.iso')
-
     Push-Location -Path $srcDirectory
     try
     {
@@ -113,16 +105,16 @@ function New-TerraformPlan
         $env:TF_LOG_PATH = (Join-Path $tempDirectory 'tf-plan.log')
         $env:WINRMCP_DEBUG = 1
 
-        & terraform validate
-        if ($LASTEXITCODE -ne 0)
-        {
-            throw 'Validation failed'
-        }
-
         & terraform init
         if ($LASTEXITCODE -ne 0)
         {
             throw 'Terraform init failed'
+        }
+
+        & terraform validate
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw 'Validation failed'
         }
 
         $command = '& terraform plan'
@@ -189,7 +181,7 @@ function Remove-TerraformPlan
 {
     [CmdletBinding()]
     param(
-        [string] $groupName = 'service-discovery',
+        [string] $groupName,
         [string] $adDomainName,
         [string] $adHost,
         [string] $hypervHost,
@@ -240,12 +232,20 @@ function Remove-TerraformPlan
 
 # ---------------------------------- Functions ---------------------------------
 
-$buildDirectory = Join-Path (Join-Path $PSScriptRoot 'build') $groupName
-$hypervDirectory = Join-Path (Join-Path $buildDirectory 'hyperv') $groupName
-$tempDirectory = Join-Path (Join-Path $buildDirectory 'temp') $groupName
-$isoDirectory = Join-Path (Join-Path $tempDirectory 'iso') $groupName
+ $groupName = 'service-discovery'
+
+$relativeBuildDirectory = $buildDirectory
+if (-not [System.IO.Path]::IsPathRooted($relativeBuildDirectory))
+{
+    $path = Join-Path $PSScriptRoot $relativeBuildDirectory
+    $relativeBuildDirectory = [System.IO.Path]::GetFullPath($path)
+}
+
+$groupBuildDirectory = Join-Path $relativeBuildDirectory $groupName
+$hypervDirectory = Join-Path (Join-Path $groupBuildDirectory 'hyperv') $groupName
+$tempDirectory = Join-Path (Join-Path $groupBuildDirectory 'temp') $groupName
 $tempArtefactDirectory = Join-Path (Join-Path $tempDirectory 'artefacts') $groupName
-$srcDirectory = Join-Path (Join-Path $PSScriptRoot 'src') $groupName
+$srcDirectory = $PSScriptRoot
 
 # Get the resource archives
 $artefactNames = @(
@@ -253,7 +253,7 @@ $artefactNames = @(
     'resource.hashi.ui'
 )
 
-$planPath = Join-Path (Join-Path $buildDirectory $groupName ) 'hyperv-meta.plan'
+$planPath = Join-Path $groupBuildDirectory 'hyperv-meta.plan'
 
 if ($apply)
 {
@@ -287,14 +287,13 @@ else
             -groupName $groupName `
             -artefactNames $artefactNames `
             -artefactDirectory $artefactDirectory `
-            -configDirectory $configDirectory `
+            -isoDirectory $isoDirectory `
             -adDomainName $adDomainName `
             -adHost $adHost `
             -hypervHost $hypervHost `
             -userName $userName `
             -userPassword $userPassword `
             -hypervDirectory $hypervDirectory `
-            -isoDirectory $isoDirectory `
             -planPath $planPath `
             -srcDirectory $srcDirectory `
             -tempDirectory $tempDirectory `
