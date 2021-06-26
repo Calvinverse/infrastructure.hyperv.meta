@@ -159,17 +159,17 @@ resource "hyperv_machine_instance" "consul_ui" {
 # CONFIG VALUES
 
 # Wait for 60 seconds because the consul hosts might be restarting
-resource "time_sleep" "wait_60_seconds" {
+resource "time_sleep" "wait_till_cluster_exists" {
   depends_on = [
     windns.dns_consul_servers[0]
   ]
 
-  create_duration = "60s"
+  create_duration = "210s"
 }
 
 module "service_discovery_configuration" {
   depends_on = [
-    time_sleep.wait_60_seconds
+    time_sleep.wait_till_cluster_exists
   ]
 
   source = "github.com/calvinverse/calvinverse.configuration//consul-kv-service-servicediscovery?ref=feature%2Fterraform-kv-proxy-module"
