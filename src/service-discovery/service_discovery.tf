@@ -9,9 +9,9 @@ locals {
 }
 
 resource "hyperv_vhd" "consul_server_vhd" {
-  count    = var.service_discovery_cluster_size
-  path     = "${var.path_hyperv_vhd}\\consul_server_${count.index}\\${local.server_disk_name}"
-  source   = "${var.path_artefacts}\\${local.server_resource_name}\\resource\\Virtual Hard Disks\\ubuntu-*.vhdx"
+  count  = var.service_discovery_cluster_size
+  path   = "${var.path_hyperv_vhd}\\consul_server_${count.index}\\${local.server_disk_name}"
+  source = "${var.path_artefacts}\\${local.server_resource_name}\\resource\\Virtual Hard Disks\\ubuntu-*.vhdx"
 }
 
 resource "hyperv_machine_instance" "consul_server" {
@@ -59,7 +59,7 @@ resource "hyperv_machine_instance" "consul_server" {
     wait_for_ips        = true
   }
 
-  processor_count = 2
+  processor_count = 1
 
   smart_paging_file_path = var.path_hyperv_temp
   snapshot_file_location = var.path_hyperv_temp
@@ -73,9 +73,12 @@ resource "hyperv_machine_instance" "consul_server" {
     secure_boot_template            = "MicrosoftUEFICertificateAuthority"
     preferred_network_boot_protocol = "IPv4"
   }
+
+  wait_for_state_timeout = 180
+  wait_for_ips_timeout   = 600
 }
 
-resource "windns" "dns-consul-servers" {
+resource "windns" "dns_consul_servers" {
   count       = var.service_discovery_cluster_size
   record_name = "${var.service_discovery_server_dns_prefix}-${count.index}"
   record_type = "A"
@@ -87,8 +90,8 @@ resource "windns" "dns-consul-servers" {
 # CONSUL UI
 
 resource "hyperv_vhd" "consul_ui_vhd" {
-  path     = "${var.path_hyperv_vhd}\\consul_ui\\${local.ui_disk_name}"
-  source   = "${var.path_artefacts}\\${local.ui_resource_name}\\resource\\Virtual Hard Disks\\ubuntu-*.vhdx"
+  path   = "${var.path_hyperv_vhd}\\consul_ui\\${local.ui_disk_name}"
+  source = "${var.path_artefacts}\\${local.ui_resource_name}\\resource\\Virtual Hard Disks\\ubuntu-*.vhdx"
 }
 
 resource "hyperv_machine_instance" "consul_ui" {
@@ -148,6 +151,9 @@ resource "hyperv_machine_instance" "consul_ui" {
     secure_boot_template            = "MicrosoftUEFICertificateAuthority"
     preferred_network_boot_protocol = "IPv4"
   }
+
+  wait_for_state_timeout = 180
+  wait_for_ips_timeout   = 600
 }
 
 # CONFIG VALUES
