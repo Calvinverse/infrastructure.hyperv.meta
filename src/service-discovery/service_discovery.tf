@@ -152,12 +152,28 @@ resource "hyperv_machine_instance" "consul_ui" {
 
 # CONFIG VALUES
 
-module "service_discovery_configuration" {
-  source = "github.com/calvinverse/calvinverse.configuration//consul-kv-service-servicediscovery?ref=feature%2Fterraform-key-value-module"
+# Wait for 60 seconds because the consul hosts might be restarting
+resource "time_sleep" "wait_60_seconds" {
+  depends_on = [
+    windns.dns_consul_servers[0]
+  ]
 
-  consul_acl_token = ""
-  consul_datacenter = "calvinverse-01"
-  consul_server_hostname = "hashiserver-0.infrastructure.${var.ad_domain}"
-  consul_server_port = 8500
+  create_duration = "60s"
+}
+
+module "service_discovery_configuration" {
+  depends_on = [
+    time_sleep.wait_60_seconds
+  ]
+
+  source = "github.com/calvinverse/calvinverse.configuration//consul-kv-service-servicediscovery?ref=feature%2Fterraform-kv-proxy-module"
+
+  # Connection settings
+  consul_acl_token       = ""
+  consul_datacenter      = var.service_discovery_datacenter
+  consul_server_hostname = "${windns.dns_consul_servers[0].record_name}.${windns.dns_consul_servers[0].zone_name}"
+  consul_server_port     = var.service_discovery_consul_port
+
+  # Configuration values
   consul_domain = "consulverse"
 }

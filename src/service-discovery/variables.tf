@@ -74,9 +74,24 @@ variable "hyperv_server_address" {
 # RESOURCES - SERVICE DISCOVERY
 #
 
+variable "service_discovery_consul_port" {
+  default     = 8500
+  description = "The port on which the consul server is listening. Note that changing this doesn't update the Consul configuration."
+}
+
 variable "service_discovery_cluster_size" {
   default     = "3"
   description = "The size of the cluster."
+}
+
+variable "service_discovery_datacenter" {
+  default     = "calvinverse-01"
+  description = "The consul datacenter for the environment"
+}
+
+variable "service_discovery_server_dns_prefix" {
+  default     = "hashiserver"
+  description = "The name of the consul servers without index. Defaults to 'hashiserver-'."
 }
 
 #
