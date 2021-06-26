@@ -38,7 +38,7 @@ resource "hyperv_machine_instance" "consul_server" {
     controller_type           = "Scsi"
     controller_number         = "0"
     controller_location       = "0"
-    path                      = "${var.path_hyperv_vhd}\\consul_server_${count.index}\\${local.server_disk_name}"
+    path                      = hyperv_vhd.consul_server_vhd[count.index].path
     override_cache_attributes = "Default"
   }
 
@@ -77,7 +77,7 @@ resource "hyperv_machine_instance" "consul_server" {
 
 resource "windns" "dns-consul-servers" {
   count       = var.service_discovery_cluster_size
-  record_name = "hashiserver-${count.index}"
+  record_name = "${var.service_discovery_server_dns_prefix}-${count.index}"
   record_type = "A"
   zone_name   = "infrastructure.${var.ad_domain}"
   ipv4address = hyperv_machine_instance.consul_server[count.index].network_adaptors.0.ip_addresses[0]
@@ -113,7 +113,7 @@ resource "hyperv_machine_instance" "consul_ui" {
     controller_type           = "Scsi"
     controller_number         = "0"
     controller_location       = "0"
-    path                      = "${var.path_hyperv_vhd}\\consul_ui\\${local.ui_disk_name}"
+    path                      = hyperv_vhd.consul_ui_vhd.path
     override_cache_attributes = "Default"
   }
 
