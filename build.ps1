@@ -2,11 +2,7 @@
 param(
     [string] $artefactDirectory,
     [string] $configDirectory,
-    [string] $adDomainName,
-    [string] $adHost,
-    [string] $hypervHost,
-    [string] $userName,
-    [string] $userPassword,
+    [string] $configFile,
     [switch] $apply,
     [switch] $destroy
 )
@@ -43,10 +39,7 @@ function New-TerraformPlan
         [string] $isoDirectory,
         [string] $buildDirectory,
         [string] $adDomainName,
-        [string] $adHost,
-        [string] $hypervHost,
-        [string] $userName,
-        [string] $userPassword
+        [string] $configFile
     )
 
     Write-Output "Planning resource changes for $group ..."
@@ -56,11 +49,7 @@ function New-TerraformPlan
         -artefactDirectory $artefactDirectory `
         -isoDirectory $isoDirectory `
         -buildDirectory $buildDirectory `
-        -adDomainName $adDomainName `
-        -adHost $adHost `
-        -hypervHost $hypervHost `
-        -userName $userName `
-        -userPassword $userPassword
+        -configFile $configFile `
 }
 
 function Publish-TerraformPlan
@@ -89,11 +78,7 @@ function Remove-TerraformPlan
         [string] $artefactDirectory,
         [string] $isoDirectory,
         [string] $buildDirectory,
-        [string] $adDomainName,
-        [string] $adHost,
-        [string] $hypervHost,
-        [string] $userName,
-        [string] $userPassword
+        [string] $configFile
     )
 
     Write-Output "Removing resources for $group ..."
@@ -103,11 +88,7 @@ function Remove-TerraformPlan
         -artefactDirectory $artefactDirectory `
         -isoDirectory $isoDirectory `
         -buildDirectory $buildDirectory `
-        -adDomainName $adDomainName `
-        -adHost $adHost `
-        -hypervHost $hypervHost `
-        -userName $userName `
-        -userPassword $userPassword `
+        -configFile $configFile `
         -destroy
 }
 
@@ -131,13 +112,12 @@ if (-not $apply)
 $orderedGroups = @(
     'service-discovery',
     'proxy'
-    #'secrets'
+    'secrets'
     #'queue'
     #'metrics`
     #'documents'
     #'orchestration`
 )
-
 
 if ($destroy)
 {
@@ -163,11 +143,7 @@ else
                 -artefactDirectory $artefactDirectory `
                 -isoDirectory $isoDirectory `
                 -buildDirectory $buildDirectory `
-                -adDomainName $adDomainName `
-                -adHost $adHost `
-                -hypervHost $hypervHost `
-                -userName $userName `
-                -userPassword $userPassword `
+                -configFile $configFile
         }
     }
 }
