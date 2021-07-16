@@ -1,13 +1,13 @@
 locals {
-  proxy_instance_name = "proxy-server"
-  proxy_disk_name     = "proxy-server.vhdx"
-  proxy_resource_name = "resource.proxy.edge"
+  instance_name = "proxy-server"
+  disk_name     = "proxy-server.vhdx"
+  resource_name = "resource.proxy.edge"
 }
 
 resource "hyperv_vhd" "proxy_server_vhd" {
   count  = var.proxy_cluster_size
-  path   = "${var.path_hyperv_vhd}\\proxy_edge_${count.index}\\${local.proxy_disk_name}"
-  source = "${var.path_artefacts}\\${local.proxy_resource_name}\\resource\\Virtual Hard Disks\\ubuntu-*.vhdx"
+  path   = "${var.path_hyperv_vhd}\\proxy_edge_${count.index}\\${local.disk_name}"
+  source = "${var.path_artefacts}\\${local.resource_name}\\resource\\Virtual Hard Disks\\ubuntu-*.vhdx"
 }
 
 #
@@ -44,7 +44,7 @@ resource "hyperv_machine_instance" "proxy_server_0" {
   memory_minimum_bytes = 1073741824 # 1Gb
   memory_startup_bytes = 1073741824 # 1Gb
 
-  name = "${local.name_prefix_tf}-${local.proxy_instance_name}-0"
+  name = "${local.name_prefix_tf}-${local.instance_name}-0"
 
   network_adaptors {
     name                = "wan"
@@ -87,7 +87,7 @@ resource "windns" "dns_proxy_server_0" {
 # CONFIG VALUES
 
 module "service_discovery_configuration" {
-  source = "github.com/calvinverse/calvinverse.configuration//consul-kv-service-proxy?ref=feature%2Fterraform-kv-proxy-module"
+  source = "github.com/calvinverse/calvinverse.configuration//consul-kv-service-proxy?ref=feature%2Fterraform-kv-secrets-module"
 
   # Connection settings
   consul_acl_token       = ""

@@ -91,7 +91,7 @@ variable "service_discovery_datacenter" {
 
 variable "service_discovery_server_dns_prefix" {
   default     = "hashiserver"
-  description = "The name of the consul servers without index. Defaults to 'hashiserver-'."
+  description = "The name of the consul servers without index. Defaults to 'hashiserver'."
 }
 
 #

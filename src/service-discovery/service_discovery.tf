@@ -172,7 +172,7 @@ module "service_discovery_configuration" {
     time_sleep.wait_till_cluster_exists
   ]
 
-  source = "github.com/calvinverse/calvinverse.configuration//consul-kv-service-servicediscovery?ref=feature%2Fterraform-kv-proxy-module"
+  source = "github.com/calvinverse/calvinverse.configuration//consul-kv-service-servicediscovery?ref=feature%2Fterraform-kv-secrets-module"
 
   # Connection settings
   consul_acl_token       = ""
