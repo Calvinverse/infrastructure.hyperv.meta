@@ -6,3 +6,4 @@ src/proxy/.terraform/
 src/proxy/.terraform.lock.hcl
 src/service-discovery/terraform.tfstate
 src/proxy/terraform.tfstate
+local-config.json
