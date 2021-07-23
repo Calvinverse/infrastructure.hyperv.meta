@@ -5,12 +5,13 @@ param(
     [string] $buildDirectory,
     [string] $configFile,
     [switch] $apply,
-    [switch] $destroy
+    [switch] $destroy,
+    [switch] $useExistingServer
 )
 
 $ErrorActionPreference = 'Stop'
 
-. (Join-Path (Split-Path -Parent -Path $PSScriptRoot) 'helpers.ps1')
+. (Join-Path (Split-Path -Parent -Path (Split-Path -Parent -Path $PSScriptRoot)) 'helpers.ps1')
 
 # ---------------------------------- Functions ---------------------------------
 
@@ -60,13 +61,13 @@ function Init-Vault
     {
         if ($line.StartsWith('Unseal Key '))
         {
-            $key = $line.Substring($line.IndexOf(':')).Trim()
+            $key = $line.Substring($line.IndexOf(':') + 1).Trim()
             $keys += $key
         }
 
-        if ($line.StartsWith('Initial Root Token:'))
+        if ($line.StartsWith('Initial Root Token:') )
         {
-            $rootToken = $line.Substring($line.IndexOf(':')).Trim()
+            $rootToken = $line.Substring($line.IndexOf(':') + 1).Trim()
         }
     }
 
@@ -194,7 +195,10 @@ function New-VaultPkiMount
     [CmdletBinding()]
     param(
         [string] $vaultPath,
-        [string] $vaultServerAddress
+        [string] $vaultServerAddress,
+        [string] $certificateServerAddress,
+        [string] $caName,
+        [string] $tempDir
     )
 
     $ErrorActionPreference = 'Stop'
@@ -221,9 +225,21 @@ function New-VaultPkiMount
         -command 'secrets tune' `
         -arguments $setPki
 
+    # Set the location of the server
+    $setUrls = @(
+        "$($name)/config/urls",
+        "issuing_certificates=`"http://$($vaultServerAddress):8200/v1/$($name)/ca`"",
+        "crl_distribution_points=`"http://$($vaultServerAddress):8200/v1/$($name)/crl`""
+    )
+    $output = Invoke-Vault `
+        -vaultPath $vaultPath `
+        -vaultServerAddress $vaultServerAddress `
+        -command 'write' `
+        -arguments $setUrls
+
     $getCsr = @(
         "$($name)/intermediate/generate/internal",
-        "common_name=`"secrets.$adDomain intermediate`"",
+        "common_name=`"secrets.infrastructure.$adDomain intermediate`"",
         "ttl=43800h",
         "add_basic_constraints=true"
     )
@@ -233,16 +249,39 @@ function New-VaultPkiMount
         -command 'write' `
         -arguments $getCsr
 
-    $csr = $output[2].Substring($output[2].Indexof('csr'))
+    $singleLine = $output | Out-String
+
+    $csr = $singleLine.Substring($singleLine.Indexof('csr') + 3).Trim()
 
     # Write the csr to file and push it to the certificate authority for signing
     # sign it with
-    #
-    # certreq -submit -attrib "CertificateTemplate:SubCA" vault.req vault.cer
+    $csrPath = Join-Path $tempDir 'vault.req'
+    Out-File -FilePath $csrPath -InputObject $csr
 
-    #
+    $certPath = Join-Path $tempDir 'vault.cer'
+    if (Test-Path $certPath)
+    {
+        Remove-Item -Path $certPath
+    }
+
+    $intermediatePath = Join-Path $tempDir 'vault.rsp'
+    if (Test-Path $intermediatePath)
+    {
+        Remove-Item -Path $intermediatePath
+    }
+
+    & certreq -submit -attrib "CertificateTemplate:SubCA" -config "$($certificateServerAddress)\$($caName)" $csrPath $certPath
+
     # Import the signed vault.cer file with
-    # vault write pki-ca/intermediate/set-signed certificate=@<CERT_FILE_PATH>
+    $setCsr = @(
+        "$($name)/intermediate/set-signed",
+        "certificate=@$($certPath)"
+    )
+    $output = Invoke-Vault `
+        -vaultPath $vaultPath `
+        -vaultServerAddress $vaultServerAddress `
+        -command 'write' `
+        -arguments $setCsr
 }
 
 function New-VaultSshMount
@@ -251,18 +290,19 @@ function New-VaultSshMount
     param(
         [string] $name,
         [string] $vaultPath,
-        [string] $vaultServerAddress
+        [string] $vaultServerAddress,
+        [string] $consulServerAddress
     )
 
     Set-VaultSshClientCertificate `
         -vaultPath $vaultPath `
         -vaultServerAddress $vaultServerAddress `
-        -consulHostName $consulHostName
+        -consulHostName $consulServerAddress
 
     Set-VaultSshHostCertificate `
         -vaultPath $vaultPath `
         -vaultServerAddress $vaultServerAddress `
-        -consulHostName $consulHostName
+        -consulHostName $consulServerAddress
 
     $mountCategory = 'client'
     $name = 'ssh.client.linux.admin'
@@ -322,11 +362,6 @@ function Set-VaultSshClientCertificate
         -command 'secrets enable' `
         -arguments $enableSshClientSigning
 
-    New-SshMount `
-        -name $name `
-        -vaultPath $vaultPath `
-        -vaultServerAddress $vaultServerAddress
-
     # Generate the key
     $setSshCA = @(
         "$($name)/config/ca",
@@ -363,14 +398,14 @@ function Set-ConsulKey
         [string] $consulHostName
     )
 
-    Write-Output "Writing k-v with key: $($key) - value: $($value) ... "
+    $url = "http://$($consulHostName):$($consulPort)/v1/kv/$($key)"
+    Write-Output "Writing k-v with key: $($key) - value: $($value) to $($url)... "
 
     $webClient = New-Object System.Net.WebClient
     try
     {
         $bytes = [System.Text.Encoding]::UTF8.GetBytes($value)
 
-        $url = "http://$($consulHostName):$($consulPort)/v1/kv/$($key)"
         $responseBytes = $webClient.UploadData($url, "PUT", $bytes)
         $response = [System.Text.Encoding]::ASCII.GetString($responseBytes)
         Write-Output "Wrote k-v with key: $($key) - value: $($value). Response: $($response)"
@@ -379,6 +414,34 @@ function Set-ConsulKey
     {
         $webClient.Dispose()
     }
+}
+
+function Set-VaultPolicy
+{
+    [CmdletBinding()]
+    param(
+        [string] $vaultPath = 'vault',
+        [string] $vaultServerAddress,
+        [string] $path
+    )
+
+    $ErrorActionPreference = 'Stop'
+
+    $file = Get-Item -Path $path
+    $fileName = $file.Name
+    $policyName = $file.BaseName
+
+    $arguments = @(
+        "sys/policy/$($policyName)",
+        "policy=@$($path)"
+    )
+
+    Write-Output "Writing policy $($policyName) from $($fileName)"
+    Invoke-Vault `
+        -vaultPath $vaultPath `
+        -vaultServerAddress $vaultServerAddress `
+        -command 'write' `
+        -arguments $arguments
 }
 
 function Set-VaultSshHostCertificate
@@ -415,17 +478,6 @@ function Set-VaultSshHostCertificate
         -command 'write' `
         -arguments $setSshCA
 
-    # Generate the key
-    $tuneSshCA = @(
-        "-max-lease-ttl=87600h",
-        $name
-    )
-    $output = Invoke-Vault `
-        -vaultPath $vaultPath `
-        -vaultServerAddress $vaultServerAddress `
-        -command 'secrets tune' `
-        -arguments $tuneSshCA
-
     $publicKey = $output[2].Substring($output[2].Indexof('ssh-rsa'))
 
     # Write token for machine to consul kv
@@ -439,6 +491,17 @@ function Set-VaultSshHostCertificate
         -value $value `
         -consulPort $consulPort `
         -consulHostName $consulHostName
+
+    # Generate the key
+    $tuneSshCA = @(
+        "-max-lease-ttl=87600h",
+        $name
+    )
+    $output = Invoke-Vault `
+        -vaultPath $vaultPath `
+        -vaultServerAddress $vaultServerAddress `
+        -command 'secrets tune' `
+        -arguments $tuneSshCA
 }
 
 function Set-VaultSshRole
@@ -477,17 +540,18 @@ function Step-VaultUnseal
         [string] $unsealKey
     )
 
+    Write-Verbose "unsealKey: $unsealKey"
+
     $ErrorActionPreference = 'Stop'
 
     $returnValue = Invoke-Vault `
         -vaultPath $vaultPath `
         -vaultServerAddress $vaultServerAddress `
         -command "operator unseal" `
-        -arguments @( $unsealKey, '-format', 'json' )
+        -arguments @( '-format', 'json', $unsealKey )
 
     $singleLine = $returnValue | Out-String
     $json = ConvertFrom-Json -InputObject $singleLine
-    json.sealed
 
     $out = $null
     if ([bool]::TryParse($json.sealed, [ref]$out))
@@ -502,7 +566,7 @@ function Step-VaultUnseal
 
 # ---------------------------------- Functions ---------------------------------
 
- $groupName = 'proxy'
+$groupName = 'secrets'
 
 $relativeBuildDirectory = $buildDirectory
 if (-not [System.IO.Path]::IsPathRooted($relativeBuildDirectory))
@@ -527,85 +591,118 @@ $vaultPath = 'vault'
 
 # read the config file
 $json = Get-Config -configFile $configFile
+$adDomainName = $json.active_directory.domain_name
 
-$consulHostName = "hashiserver-0.$($adDomainName)"
-$vaultHostName = "secrets.infrastructure.$($adDomainName)"
+$consulHostName = "hashiserver-0.infrastructure.$($adDomainName)"
+$vaultHostNames = @(
+    "secrets-0.infrastructure.$($adDomainName)"
+)
+
+$vaultCname = "secrets.infrastructure.$($adDomainName)"
 if ($apply)
 {
-    "Applying terraform plan at: $planPath"
-    Publish-TerraformPlan `
-        -planPath $planPath `
-        -srcDirectory $srcDirectory
+    if (-not $useExistingServer)
+    {
+        "Applying terraform plan at: $planPath"
+        Publish-TerraformPlan `
+            -planPath $planPath `
+            -srcDirectory $srcDirectory
+
+        # Wait for the VM to restart
+        Start-Sleep -Seconds 120
+    }
 
     # init secrets-0.infrastructure.ad.calvinverse.net -> Store secrets in text file somewhere
     $keys = Init-Vault `
         -vaultPath $vaultPath `
-        -vaultServerAddress $vaultHostName
+        -vaultServerAddress $vaultHostNames[0]
+
+    Write-Output -InputObject $keys
 
     Out-File -FilePath 'd:\temp\vault.keys' -InputObject $keys[0]
 
-    # Unseal
-    Step-VaultUnseal `
-        -vaultPath $vaultPath `
-        -vaultServerAddress $vaultHostName `
-        -unsealKey $keys[0][0]
+    # Unseal each of the servers
+    foreach($vaultServer in $vaultHostNames)
+    {
+        Step-VaultUnseal `
+            -vaultPath $vaultPath `
+            -vaultServerAddress $vaultServer `
+            -unsealKey $keys[0][0]
 
-    Step-VaultUnseal `
-        -vaultPath $vaultPath `
-        -vaultServerAddress $vaultHostName `
-        -unsealKey $keys[0][1]
+        Step-VaultUnseal `
+            -vaultPath $vaultPath `
+            -vaultServerAddress $vaultServer `
+            -unsealKey $keys[0][1]
 
-    Step-VaultUnseal `
-        -vaultPath $vaultPath `
-        -vaultServerAddress $vaultHostName `
-        -unsealKey $keys[0][2]
+        Step-VaultUnseal `
+            -vaultPath $vaultPath `
+            -vaultServerAddress $vaultServer `
+            -unsealKey $keys[0][2]
+    }
 
     # Use the root password to log in
     Connect-Vault `
         -vaultPath $vaultPath `
-        -vaultServerAddress $vaultHostName `
+        -vaultServerAddress $vaultCname `
         -token $keys[1]
 
     # Create the LDAP mount
     New-VaultLdapMount `
         -vaultPath $vaultPath `
-        -vaultServerAddress $vaultHostName `
-        -ldapServerNameOrIp $json.active_directory.host `
+        -vaultServerAddress $vaultCname `
+        -ldapServerNameOrIp "$($json.active_directory.host).$($adDomainName)" `
         -userDn $json.active_directory.user_dn `
         -groupDn $json.active_directory.group_dn `
         -bindDn $json.active_directory.bind_user_dn `
         -bindPassword $json.active_directory.bind_user_password
 
+    # Set the admin policy
+    Set-VaultPolicy `
+        -vaultPath $vaultPath `
+        -vaultServerAddress $vaultCname `
+        -path (Join-Path (Join-Path $PSScriptRoot 'policies') 'admin.hcl')
+
     # Run creation of all the mounts and policies
     New-VaultKvMount `
         -vaultPath $vaultPath `
-        -vaultServerAddress $vaultHostName
+        -vaultServerAddress $vaultCname
 
     New-VaultAppRoleMount `
         -vaultPath $vaultPath `
-        -vaultServerAddress $vaultHostName
+        -vaultServerAddress $vaultCname
 
     New-VaultConsulMount `
         -vaultPath $vaultPath `
-        -vaultServerAddress $vaultHostName
+        -vaultServerAddress $vaultCname
 
     New-VaultSshMount `
         -vaultPath $vaultPath `
-        -vaultServerAddress $vaultHostName
+        -vaultServerAddress $vaultCname `
+        -consulServerAddress $consulHostName
 
+    Set-VaultPolicy `
+        -vaultPath $vaultPath `
+        -vaultServerAddress $vaultCname `
+        -path (Join-Path (Join-Path $PSScriptRoot 'policies') 'admin.hcl')
+
+    $certificateServerName = $json.certificates.host
+    $caName = $json.certificates.ca_name
     New-VaultPkiMount `
         -vaultPath $vaultPath `
-        -vaultServerAddress $vaultHostName
+        -vaultServerAddress $vaultCname `
+        -certificateServerAddress "$($certificateServerName).$($adDomainName)" `
+        -caName $caName `
+        -tempDir $tempDirectory `
+
 
     # Remove the root token
     Revoke-VaultToken `
         -vaultPath $vaultPath `
-        -vaultServerAddress $vaultHostName `
+        -vaultServerAddress $vaultCname `
         -token $keys[1]
 }
 else
 {
-    $adDomainName = $json.active_directory.domain_name,
     $adHost = $json.active_directory.host
     $hypervHost = $json.hyperv.host
     $userName = $json.active_directory.user_name
