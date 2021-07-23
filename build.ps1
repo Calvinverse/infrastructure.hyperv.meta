@@ -42,6 +42,7 @@ function New-TerraformPlan
         [string] $configFile
     )
 
+    Write-Output ''
     Write-Output "Planning resource changes for $group ..."
     $script = Join-Path (Join-Path $srcDirectory $group) 'build.ps1'
 
@@ -49,7 +50,7 @@ function New-TerraformPlan
         -artefactDirectory $artefactDirectory `
         -isoDirectory $isoDirectory `
         -buildDirectory $buildDirectory `
-        -configFile $configFile `
+        -configFile $configFile
 }
 
 function Publish-TerraformPlan
@@ -58,14 +59,17 @@ function Publish-TerraformPlan
     param(
         [string] $group,
         [string] $srcDirectory,
-        [string] $buildDirectory
+        [string] $buildDirectory,
+        [string] $configFile
     )
 
+    Write-Output ''
     Write-Output "Creating resources for $group ..."
     $script = Join-Path (Join-Path $srcDirectory $group) 'build.ps1'
 
     & $script `
         -buildDirectory $buildDirectory `
+        -configFile $configFile `
         -apply
 }
 
@@ -81,6 +85,7 @@ function Remove-TerraformPlan
         [string] $configFile
     )
 
+    Write-Output ''
     Write-Output "Removing resources for $group ..."
     $script = Join-Path (Join-Path $srcDirectory $group) 'build.ps1'
 
@@ -128,22 +133,45 @@ else
 {
     foreach ($group in $orderedGroups)
     {
-        if ($apply)
+        try
         {
-            Publish-TerraformPlan `
-                -group $group `
-                -srcDirectory $srcDirectory `
-                -buildDirectory $buildDirectory
+            if ($apply)
+            {
+                Publish-TerraformPlan `
+                    -group $group `
+                    -srcDirectory $srcDirectory `
+                    -buildDirectory $buildDirectory `
+                    -configFile $configFile
+            }
+            else
+            {
+                New-TerraformPlan `
+                    -group $group `
+                    -srcDirectory $srcDirectory `
+                    -artefactDirectory $artefactDirectory `
+                    -isoDirectory $isoDirectory `
+                    -buildDirectory $buildDirectory `
+                    -configFile $configFile
+            }
         }
-        else
+        catch
         {
-            New-TerraformPlan `
-                -group $group `
-                -srcDirectory $srcDirectory `
-                -artefactDirectory $artefactDirectory `
-                -isoDirectory $isoDirectory `
-                -buildDirectory $buildDirectory `
-                -configFile $configFile
+            $currentErrorActionPreference = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+
+            try
+            {
+                Write-Error $errorRecord.Exception
+                Write-Error $errorRecord.ScriptStackTrace
+                Write-Error $errorRecord.InvocationInfo.PositionMessage
+            }
+            finally
+            {
+                $ErrorActionPreference = $currentErrorActionPreference
+            }
+
+            # rethrow the error
+            throw $_.Exception
         }
     }
 }
