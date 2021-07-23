@@ -10,7 +10,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-. (Join-Path (Split-Path -Parent -Path $PSScriptRoot) 'helpers.ps1')
+. (Join-Path (Split-Path -Parent -Path (Split-Path -Parent -Path $PSScriptRoot)) 'helpers.ps1')
 
 # ---------------------------------- Functions ---------------------------------
 
@@ -53,8 +53,7 @@ else
 {
     # read the config file
     $json = Get-Config -configFile $configFile
-
-    $adDomainName = $json.active_directory.domain_name,
+    $adDomainName = $json.active_directory.domain_name
     $adHost = $json.active_directory.host
     $hypervHost = $json.hyperv.host
     $userName = $json.active_directory.user_name
