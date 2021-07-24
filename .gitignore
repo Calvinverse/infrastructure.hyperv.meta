@@ -1,8 +1,13 @@
 build/
+local-config.json
 src/.terraform/
-src/service-discovery/.terraform/
-src/service-discovery/.terraform.lock.hcl
-src/proxy/.terraform/
 src/proxy/.terraform.lock.hcl
-src/service-discovery/terraform.tfstate
+src/proxy/.terraform/
 src/proxy/terraform.tfstate
+src/secrets/.terraform.lock.hcl
+src/secrets/.terraform/
+src/secrets/build.ps1
+src/secrets/terraform.tfstate
+src/service-discovery/.terraform.lock.hcl
+src/service-discovery/.terraform/
+src/service-discovery/terraform.tfstate

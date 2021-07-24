@@ -1,0 +1,19 @@
+{
+    "active_directory": {
+        "host": "HOST_NAME_WITHOUT_DOMAIN",
+        "user_name": "USERNAME",
+        "password": "PASSWORD",
+        "domain_name": "DOMAIN_POST_FIX",
+        "bind_user_dn": "AD_DN_FOR_USER_THAT_CAN_QUERY_AD",
+        "bind_user_password": "PASSWORD",
+        "user_dn": "DN_FOR_AD_GROUP_FOR_USERS",
+        "group_dn": "DN_FOR_AD_GROUP_FOR_USER_GROUPS"
+    },
+    "hyperv": {
+        "host": "FQDN_FOR_HYPER_V_HOST"
+    },
+    "certificates": {
+        "host": "HOST_NAME_WITHOUT_DOMAIN",
+        "ca_name": "NAME_OF_CA"
+    }
+}

@@ -2,11 +2,7 @@
 param(
     [string] $artefactDirectory,
     [string] $configDirectory,
-    [string] $adDomainName,
-    [string] $adHost,
-    [string] $hypervHost,
-    [string] $userName,
-    [string] $userPassword,
+    [string] $configFile,
     [switch] $apply,
     [switch] $destroy
 )
@@ -43,12 +39,10 @@ function New-TerraformPlan
         [string] $isoDirectory,
         [string] $buildDirectory,
         [string] $adDomainName,
-        [string] $adHost,
-        [string] $hypervHost,
-        [string] $userName,
-        [string] $userPassword
+        [string] $configFile
     )
 
+    Write-Output ''
     Write-Output "Planning resource changes for $group ..."
     $script = Join-Path (Join-Path $srcDirectory $group) 'build.ps1'
 
@@ -56,11 +50,7 @@ function New-TerraformPlan
         -artefactDirectory $artefactDirectory `
         -isoDirectory $isoDirectory `
         -buildDirectory $buildDirectory `
-        -adDomainName $adDomainName `
-        -adHost $adHost `
-        -hypervHost $hypervHost `
-        -userName $userName `
-        -userPassword $userPassword
+        -configFile $configFile
 }
 
 function Publish-TerraformPlan
@@ -69,14 +59,17 @@ function Publish-TerraformPlan
     param(
         [string] $group,
         [string] $srcDirectory,
-        [string] $buildDirectory
+        [string] $buildDirectory,
+        [string] $configFile
     )
 
+    Write-Output ''
     Write-Output "Creating resources for $group ..."
     $script = Join-Path (Join-Path $srcDirectory $group) 'build.ps1'
 
     & $script `
         -buildDirectory $buildDirectory `
+        -configFile $configFile `
         -apply
 }
 
@@ -89,13 +82,10 @@ function Remove-TerraformPlan
         [string] $artefactDirectory,
         [string] $isoDirectory,
         [string] $buildDirectory,
-        [string] $adDomainName,
-        [string] $adHost,
-        [string] $hypervHost,
-        [string] $userName,
-        [string] $userPassword
+        [string] $configFile
     )
 
+    Write-Output ''
     Write-Output "Removing resources for $group ..."
     $script = Join-Path (Join-Path $srcDirectory $group) 'build.ps1'
 
@@ -103,11 +93,7 @@ function Remove-TerraformPlan
         -artefactDirectory $artefactDirectory `
         -isoDirectory $isoDirectory `
         -buildDirectory $buildDirectory `
-        -adDomainName $adDomainName `
-        -adHost $adHost `
-        -hypervHost $hypervHost `
-        -userName $userName `
-        -userPassword $userPassword `
+        -configFile $configFile `
         -destroy
 }
 
@@ -131,13 +117,12 @@ if (-not $apply)
 $orderedGroups = @(
     'service-discovery',
     'proxy'
-    #'secrets'
+    'secrets'
     #'queue'
     #'metrics`
     #'documents'
     #'orchestration`
 )
-
 
 if ($destroy)
 {
@@ -148,26 +133,45 @@ else
 {
     foreach ($group in $orderedGroups)
     {
-        if ($apply)
+        try
         {
-            Publish-TerraformPlan `
-                -group $group `
-                -srcDirectory $srcDirectory `
-                -buildDirectory $buildDirectory
+            if ($apply)
+            {
+                Publish-TerraformPlan `
+                    -group $group `
+                    -srcDirectory $srcDirectory `
+                    -buildDirectory $buildDirectory `
+                    -configFile $configFile
+            }
+            else
+            {
+                New-TerraformPlan `
+                    -group $group `
+                    -srcDirectory $srcDirectory `
+                    -artefactDirectory $artefactDirectory `
+                    -isoDirectory $isoDirectory `
+                    -buildDirectory $buildDirectory `
+                    -configFile $configFile
+            }
         }
-        else
+        catch
         {
-            New-TerraformPlan `
-                -group $group `
-                -srcDirectory $srcDirectory `
-                -artefactDirectory $artefactDirectory `
-                -isoDirectory $isoDirectory `
-                -buildDirectory $buildDirectory `
-                -adDomainName $adDomainName `
-                -adHost $adHost `
-                -hypervHost $hypervHost `
-                -userName $userName `
-                -userPassword $userPassword `
+            $currentErrorActionPreference = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+
+            try
+            {
+                Write-Error $errorRecord.Exception
+                Write-Error $errorRecord.ScriptStackTrace
+                Write-Error $errorRecord.InvocationInfo.PositionMessage
+            }
+            finally
+            {
+                $ErrorActionPreference = $currentErrorActionPreference
+            }
+
+            # rethrow the error
+            throw $_.Exception
         }
     }
 }
