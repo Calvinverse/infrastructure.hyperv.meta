@@ -87,7 +87,7 @@ resource "windns" "dns_proxy_server_0" {
 # CONFIG VALUES
 
 module "service_discovery_configuration" {
-  source = "github.com/calvinverse/calvinverse.configuration//consul-kv-service-proxy?ref=feature%2Fterraform-kv-secrets-module"
+  source = "github.com/calvinverse/calvinverse.configuration//consul-kv-service-proxy?ref=develop"
 
   # Connection settings
   consul_acl_token       = ""

@@ -93,7 +93,7 @@ resource "windns" "dns_vault_servers" {
 # CONFIG VALUES
 
 module "service_discovery_configuration" {
-  source = "github.com/calvinverse/calvinverse.configuration//consul-kv-service-secrets?ref=feature%2Fterraform-kv-secrets-module"
+  source = "github.com/calvinverse/calvinverse.configuration//consul-kv-service-secrets?ref=develop"
 
   # Connection settings
   consul_acl_token       = ""
