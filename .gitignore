@@ -1,6 +1,9 @@
 build/
 local-config.json
 src/.terraform/
+src/orchestration/.terraform.lock.hcl
+src/orchestration/.terraform/
+src/orchestration/terraform.tfstate
 src/proxy/.terraform.lock.hcl
 src/proxy/.terraform/
 src/proxy/terraform.tfstate
