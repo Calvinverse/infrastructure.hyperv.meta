@@ -81,7 +81,7 @@ variable "cluster_size" {
 
 variable "secret_server_dns_prefix" {
   default     = "secrets"
-  description = "The name of the consul servers without index. Defaults to 'secrets'."
+  description = "The name of the vault servers without index. Defaults to 'secrets'."
 }
 
 #

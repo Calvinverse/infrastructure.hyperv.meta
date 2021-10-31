@@ -608,7 +608,7 @@ if ($apply)
             -planPath $planPath `
             -srcDirectory $srcDirectory
 
-        # Wait for the VM to restart
+        Write-Output "Waiting 120 seconds for the secrets VM to restart ..."
         Start-Sleep -Seconds 120
     }
 

@@ -74,9 +74,19 @@ variable "hyperv_server_address" {
 # RESOURCES - ORCHESTRATOR
 #
 
-variable "orchestrator_cluster_size" {
+variable "orchestrator_server_cluster_size" {
   default     = "1"
-  description = "The size of the cluster."
+  description = "The number of server nodes in the cluster."
+}
+
+variable "orchestration_server_dns_prefix" {
+  default     = "jobs"
+  description = "The name of the nomad servers without index. Defaults to 'jobs'."
+}
+
+variable "orchestrator_agent_cluster_size" {
+  default     = "2"
+  description = "The number of agent nodes in the cluster."
 }
 
 #

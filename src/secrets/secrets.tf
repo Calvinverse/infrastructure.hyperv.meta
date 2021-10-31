@@ -74,7 +74,7 @@ resource "hyperv_machine_instance" "vault_server" {
   wait_for_ips_timeout   = 600
 }
 
-resource "windns" "dns_vault_servers" {
+resource "windns" "dns_vault_servers_by_count" {
   count       = var.cluster_size
   record_name = "${var.secret_server_dns_prefix}-${count.index}"
   record_type = "A"
@@ -82,12 +82,12 @@ resource "windns" "dns_vault_servers" {
   ipv4address = hyperv_machine_instance.vault_server[count.index].network_adaptors.0.ip_addresses[0]
 }
 
-resource "windns" "dns_vault_servers" {
+resource "windns" "dns_vault_servers_roundrobin" {
   count       = var.cluster_size
   record_name = "${var.secret_server_dns_prefix}"
   record_type = "CNAME"
   zone_name   = "infrastructure.${var.ad_domain}"
-  hostnamealias = "${var.secret_server_dns_prefix}-${count.index}"
+  hostnamealias = "${windns.dns_vault_servers_by_count[count.index].record_name}.${windns.dns_vault_servers_by_count[count.index].zone_name}"
 }
 
 # CONFIG VALUES
@@ -98,7 +98,7 @@ module "service_discovery_configuration" {
   # Connection settings
   consul_acl_token       = ""
   consul_datacenter      = "calvinverse-01"
-  consul_server_hostname = "hashiserver-0.${windns.dns_vault_servers[0].zone_name}"
+  consul_server_hostname = "hashiserver-0.${windns.dns_vault_servers_by_count[0].zone_name}"
   consul_server_port     = 8500
 
   # Configuration values

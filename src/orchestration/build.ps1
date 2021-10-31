@@ -33,7 +33,8 @@ $srcDirectory = $PSScriptRoot
 
 # Get the resource archives
 $artefactNames = @(
-    'resource.hashi.orchestrator'
+    'resource.hashi.orchestrator',
+    'resource.container.host.linux'
 )
 
 $planPath = Join-Path $groupBuildDirectory 'hyperv-meta.plan'

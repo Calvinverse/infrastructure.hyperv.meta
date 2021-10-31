@@ -116,12 +116,12 @@ if (-not $apply)
 
 $orderedGroups = @(
     'service-discovery',
-    'proxy'
-    'secrets'
+    'proxy',
+    'secrets',
     #'queue'
-    #'metrics`
+    #'metrics'
     #'documents'
-    #'orchestration`
+    'orchestration'
 )
 
 if ($destroy)
